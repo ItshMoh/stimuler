@@ -327,6 +327,11 @@
   font-weight: 700;
 }
 
+.score-panel.compact strong {
+  font-size: 34px;
+}
+
+.pronunciation-section,
 .delivery-section {
   display: grid;
   gap: 10px;
@@ -334,6 +339,12 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #ffffff;
+}
+
+.limitation-note {
+  padding: 10px;
+  border-left: 3px solid var(--warning);
+  background: #fff7ed;
 }
 
 .score-grid {

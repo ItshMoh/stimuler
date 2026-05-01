@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from deepgram_client import transcribe_audio
 from prompts import PROMPTS, get_prompt
-from scoring import score_accuracy, score_delivery
+from scoring import score_accuracy, score_delivery, score_pronunciation
 from streaming import stream_transcription
 
 load_dotenv()
@@ -69,6 +69,11 @@ async def receive_audio(
     transcription = transcribe_audio(audio_bytes)
     accuracy_result = score_accuracy(prompt.text, transcription["transcript"])
     delivery_result = score_delivery(transcription["words"])
+    pronunciation_result = score_pronunciation(
+        prompt.text,
+        transcription["transcript"],
+        transcription["words"],
+    )
 
     return {
         "prompt_id": prompt.id,
@@ -82,16 +87,19 @@ async def receive_audio(
         "deepgram_model": transcription["model"],
         "scores": {
             "accuracy": accuracy_result["accuracy"],
+            "pronunciation": pronunciation_result["score"],
             **delivery_result["scores"],
         },
         "metrics": {
             **accuracy_result["metrics"],
             **delivery_result["metrics"],
+            **pronunciation_result["metrics"],
         },
         "fillers": delivery_result["fillers"],
         "pauses": delivery_result["pauses"],
         "word_feedback": accuracy_result["word_feedback"],
         "explanation": accuracy_result["explanation"],
         "fluency_explanation": delivery_result["explanation"],
+        "pronunciation_explanation": pronunciation_result["explanation"],
         "message": "Audio transcribed and compared with the target prompt.",
     }

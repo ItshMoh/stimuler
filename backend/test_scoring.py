@@ -1,6 +1,15 @@
 import unittest
 
-from scoring import detect_fillers, detect_pauses, score_accuracy, score_delivery, tokenize
+from scoring import (
+    detect_fillers,
+    detect_pauses,
+    levenshtein_distance,
+    score_accuracy,
+    score_delivery,
+    score_pronunciation,
+    text_to_phonetic,
+    tokenize,
+)
 
 
 class ScoringTest(unittest.TestCase):
@@ -93,6 +102,38 @@ class ScoringTest(unittest.TestCase):
 
         self.assertEqual(len(pauses), 1)
         self.assertEqual(pauses[0]["type"], "awkward_pause")
+
+    def test_text_to_phonetic_normalizes_similar_sounds(self):
+        self.assertEqual(text_to_phonetic("Phone quick"), "fn kwk")
+
+    def test_levenshtein_distance_counts_edits(self):
+        self.assertEqual(levenshtein_distance("kitten", "sitting"), 3)
+
+    def test_pronunciation_scores_exact_transcript_high(self):
+        result = score_pronunciation(
+            "Hello, I am Michael from Philadelphia.",
+            "hello i am michael from philadelphia",
+            [
+                {"word": "hello", "confidence": 0.96},
+                {"word": "i", "confidence": 0.98},
+                {"word": "am", "confidence": 0.97},
+                {"word": "michael", "confidence": 0.94},
+                {"word": "from", "confidence": 0.95},
+                {"word": "philadelphia", "confidence": 0.92},
+            ],
+        )
+
+        self.assertGreaterEqual(result["score"], 95)
+        self.assertEqual(result["metrics"]["phonetic_similarity"], 100)
+
+    def test_pronunciation_scores_wrong_transcript_lower(self):
+        result = score_pronunciation(
+            "Hello, I am Michael from Philadelphia.",
+            "today we discuss food",
+            [{"word": "today", "confidence": 0.98}],
+        )
+
+        self.assertLess(result["score"], 60)
 
 
 if __name__ == "__main__":

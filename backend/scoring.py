@@ -8,6 +8,23 @@ WordStatus = Literal["match", "substitution", "omission", "insertion"]
 FILLER_WORDS = {"um", "uh", "erm", "hmm", "like", "actually", "oh"}
 MILD_PAUSE_SECONDS = 0.7
 AWKWARD_PAUSE_SECONDS = 1.2
+PHONETIC_REPLACEMENTS = (
+    ("tion", "shun"),
+    ("sion", "zhun"),
+    ("ough", "o"),
+    ("igh", "i"),
+    ("ph", "f"),
+    ("ght", "t"),
+    ("kn", "n"),
+    ("wr", "r"),
+    ("wh", "w"),
+    ("ck", "k"),
+    ("qu", "kw"),
+    ("x", "ks"),
+    ("c", "k"),
+    ("q", "k"),
+    ("z", "s"),
+)
 
 
 @dataclass(frozen=True)
@@ -112,6 +129,108 @@ def score_delivery(words: list[dict[str, Any]]) -> dict:
             ),
         ),
     }
+
+
+def score_pronunciation(
+    target_text: str,
+    transcript: str,
+    words: list[dict[str, Any]],
+) -> dict:
+    target_phonetic = text_to_phonetic(target_text)
+    transcript_phonetic = text_to_phonetic(transcript)
+    phonetic_score = calculate_phonetic_similarity(target_phonetic, transcript_phonetic)
+    confidence_score = calculate_confidence_score(words)
+
+    if confidence_score is None:
+        pronunciation_score = phonetic_score
+    else:
+        pronunciation_score = round((phonetic_score * 0.75) + (confidence_score * 0.25))
+
+    return {
+        "score": pronunciation_score,
+        "metrics": {
+            "phonetic_similarity": phonetic_score,
+            "average_word_confidence": confidence_score,
+            "target_phonetic": target_phonetic,
+            "transcript_phonetic": transcript_phonetic,
+        },
+        "explanation": build_pronunciation_explanation(
+            pronunciation_score=pronunciation_score,
+            phonetic_score=phonetic_score,
+            confidence_score=confidence_score,
+        ),
+    }
+
+
+def text_to_phonetic(text: str) -> str:
+    return " ".join(word_to_phonetic(word) for word in tokenize(text))
+
+
+def word_to_phonetic(word: str) -> str:
+    phonetic = word.lower()
+
+    for source, replacement in PHONETIC_REPLACEMENTS:
+        phonetic = phonetic.replace(source, replacement)
+
+    phonetic = re.sub(r"(.)\1+", r"\1", phonetic)
+    phonetic = re.sub(r"(?<!^)[aeiou]", "", phonetic)
+    phonetic = re.sub(r"[^a-z0-9]", "", phonetic)
+    return phonetic
+
+
+def calculate_phonetic_similarity(target_phonetic: str, transcript_phonetic: str) -> int:
+    if not target_phonetic and not transcript_phonetic:
+        return 100
+
+    if not target_phonetic or not transcript_phonetic:
+        return 0
+
+    distance = levenshtein_distance(target_phonetic, transcript_phonetic)
+    max_length = max(len(target_phonetic), len(transcript_phonetic))
+    return max(0, round(100 * (1 - distance / max_length)))
+
+
+def calculate_confidence_score(words: list[dict[str, Any]]) -> int | None:
+    confidences = [
+        word["confidence"]
+        for word in words
+        if isinstance(word.get("confidence"), (int, float))
+    ]
+
+    if not confidences:
+        return None
+
+    return round((sum(confidences) / len(confidences)) * 100)
+
+
+def levenshtein_distance(left: str, right: str) -> int:
+    if left == right:
+        return 0
+
+    if not left:
+        return len(right)
+
+    if not right:
+        return len(left)
+
+    previous_row = list(range(len(right) + 1))
+
+    for left_index, left_char in enumerate(left, start=1):
+        current_row = [left_index]
+
+        for right_index, right_char in enumerate(right, start=1):
+            substitution_cost = 0 if left_char == right_char else 1
+            current_row.append(
+                min(
+                    previous_row[right_index] + 1,
+                    current_row[right_index - 1] + 1,
+                    previous_row[right_index - 1] + substitution_cost,
+                )
+            )
+
+        previous_row = current_row
+
+    return previous_row[-1]
 
 
 def calculate_words_per_minute(words: list[dict[str, Any]]) -> int | None:
@@ -349,6 +468,29 @@ def build_delivery_explanation(
         return "Fluency was reduced by uneven delivery."
 
     return f"Fluency reduced because {', '.join(issues)}."
+
+
+def build_pronunciation_explanation(
+    *,
+    pronunciation_score: int,
+    phonetic_score: int,
+    confidence_score: int | None,
+) -> str:
+    if pronunciation_score >= 90:
+        return "Pronunciation approximation closely matches the target wording."
+
+    issues = []
+
+    if phonetic_score < 85:
+        issues.append("phonetic distance from the target was higher")
+
+    if confidence_score is not None and confidence_score < 80:
+        issues.append("Deepgram word confidence was lower")
+
+    if not issues:
+        return "Pronunciation approximation is limited by transcript-level matching."
+
+    return f"Pronunciation reduced because {', '.join(issues)}."
 
 
 def _has_timing(word: dict[str, Any]) -> bool:

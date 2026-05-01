@@ -30,6 +30,7 @@ type UploadResult = {
   words: TranscribedWord[]
   scores: {
     accuracy: number
+    pronunciation: number
     fluency: number
     pause: number
     filler: number
@@ -40,6 +41,7 @@ type UploadResult = {
   word_feedback: WordFeedback[]
   explanation: string
   fluency_explanation: string
+  pronunciation_explanation: string
   message: string
 }
 
@@ -65,6 +67,10 @@ type AssessmentMetrics = {
   awkward_pause_count: number
   mild_hesitation_count: number
   rhythm_score: number
+  phonetic_similarity: number
+  average_word_confidence: number | null
+  target_phonetic: string
+  transcript_phonetic: string
 }
 
 type WordFeedback = {
@@ -303,11 +309,12 @@ function App() {
   return (
     <main className="app-shell">
       <section className="intro-panel">
-        <div className="eyebrow">Phase 6</div>
+        <div className="eyebrow">Phase 7</div>
         <h1>Record your selected sentence</h1>
         <p>
           Choose a prompt, allow microphone access, and stream speech for live
-          transcription before strict accuracy and fluency scoring.
+          transcription before strict accuracy, fluency, and pronunciation
+          scoring.
         </p>
       </section>
 
@@ -431,6 +438,32 @@ function App() {
                 <span>/100</span>
               </div>
               <p>{uploadResult.explanation}</p>
+
+              <div className="pronunciation-section">
+                <h3>Pronunciation approximation</h3>
+                <p>{uploadResult.pronunciation_explanation}</p>
+                <div className="score-panel compact">
+                  <strong>{uploadResult.scores.pronunciation}</strong>
+                  <span>/100</span>
+                </div>
+                <div className="accuracy-metrics" aria-label="Pronunciation metrics">
+                  <div>
+                    <span>Phonetic match</span>
+                    <strong>{uploadResult.metrics.phonetic_similarity}</strong>
+                  </div>
+                  <div>
+                    <span>Word confidence</span>
+                    <strong>
+                      {uploadResult.metrics.average_word_confidence ?? '--'}
+                    </strong>
+                  </div>
+                </div>
+                <p className="limitation-note">
+                  MVP limitation: this is an approximation based on transcript
+                  phonetic distance and Deepgram confidence, not phoneme-level
+                  pronunciation assessment.
+                </p>
+              </div>
 
               <div className="delivery-section">
                 <h3>Fluency breakdown</h3>
