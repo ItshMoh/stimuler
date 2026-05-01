@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from fastapi import WebSocket
 
 from prompts import Prompt
-from scoring import score_accuracy
+from scoring import score_accuracy, score_delivery
 
 
 def build_assessment_result(
@@ -19,6 +19,7 @@ def build_assessment_result(
     model: str,
 ) -> dict[str, Any]:
     accuracy_result = score_accuracy(prompt.text, transcript)
+    delivery_result = score_delivery(words)
 
     return {
         "prompt_id": prompt.id,
@@ -32,10 +33,17 @@ def build_assessment_result(
         "deepgram_model": model,
         "scores": {
             "accuracy": accuracy_result["accuracy"],
+            **delivery_result["scores"],
         },
-        "metrics": accuracy_result["metrics"],
+        "metrics": {
+            **accuracy_result["metrics"],
+            **delivery_result["metrics"],
+        },
+        "fillers": delivery_result["fillers"],
+        "pauses": delivery_result["pauses"],
         "word_feedback": accuracy_result["word_feedback"],
         "explanation": accuracy_result["explanation"],
+        "fluency_explanation": delivery_result["explanation"],
         "message": "Live audio transcribed and compared with the target prompt.",
     }
 

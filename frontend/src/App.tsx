@@ -30,10 +30,16 @@ type UploadResult = {
   words: TranscribedWord[]
   scores: {
     accuracy: number
+    fluency: number
+    pause: number
+    filler: number
   }
-  metrics: AccuracyMetrics
+  metrics: AssessmentMetrics
+  fillers: FillerEvent[]
+  pauses: PauseEvent[]
   word_feedback: WordFeedback[]
   explanation: string
+  fluency_explanation: string
   message: string
 }
 
@@ -45,19 +51,41 @@ type TranscribedWord = {
   confidence: number | null
 }
 
-type AccuracyMetrics = {
+type AssessmentMetrics = {
   target_word_count: number
   spoken_word_count: number
   match_count: number
   substitution_count: number
   omission_count: number
   insertion_count: number
+  words_per_minute: number | null
+  speaking_duration_seconds: number | null
+  filler_count: number
+  pause_count: number
+  awkward_pause_count: number
+  mild_hesitation_count: number
+  rhythm_score: number
 }
 
 type WordFeedback = {
   target_word: string | null
   spoken_word: string | null
   status: 'match' | 'substitution' | 'omission' | 'insertion'
+}
+
+type FillerEvent = {
+  word: string
+  start: number | null
+  end: number | null
+}
+
+type PauseEvent = {
+  type: 'mild_hesitation' | 'awkward_pause'
+  duration_seconds: number
+  after_word: string
+  before_word: string
+  start: number | null
+  end: number | null
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -275,11 +303,11 @@ function App() {
   return (
     <main className="app-shell">
       <section className="intro-panel">
-        <div className="eyebrow">Phase 5.5</div>
+        <div className="eyebrow">Phase 6</div>
         <h1>Record your selected sentence</h1>
         <p>
           Choose a prompt, allow microphone access, and stream speech for live
-          transcription before final scoring.
+          transcription before strict accuracy and fluency scoring.
         </p>
       </section>
 
@@ -404,6 +432,76 @@ function App() {
               </div>
               <p>{uploadResult.explanation}</p>
 
+              <div className="delivery-section">
+                <h3>Fluency breakdown</h3>
+                <p>{uploadResult.fluency_explanation}</p>
+
+                <div className="score-grid" aria-label="Fluency scores">
+                  <div>
+                    <span>Fluency</span>
+                    <strong>{uploadResult.scores.fluency}</strong>
+                  </div>
+                  <div>
+                    <span>Pauses</span>
+                    <strong>{uploadResult.scores.pause}</strong>
+                  </div>
+                  <div>
+                    <span>Fillers</span>
+                    <strong>{uploadResult.scores.filler}</strong>
+                  </div>
+                </div>
+
+                <div className="accuracy-metrics" aria-label="Fluency metrics">
+                  <div>
+                    <span>Words / min</span>
+                    <strong>
+                      {uploadResult.metrics.words_per_minute ?? '--'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Duration</span>
+                    <strong>
+                      {uploadResult.metrics.speaking_duration_seconds ?? '--'}s
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Fillers</span>
+                    <strong>{uploadResult.metrics.filler_count}</strong>
+                  </div>
+                  <div>
+                    <span>Awkward pauses</span>
+                    <strong>{uploadResult.metrics.awkward_pause_count}</strong>
+                  </div>
+                </div>
+
+                {uploadResult.fillers.length > 0 && (
+                  <div className="event-list" aria-label="Detected fillers">
+                    {uploadResult.fillers.map((filler, index) => (
+                      <span key={`${filler.word}-${index}`}>
+                        {filler.word}
+                        <small>{formatTimeRange(filler.start, filler.end)}</small>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {uploadResult.pauses.length > 0 && (
+                  <div className="event-list" aria-label="Detected pauses">
+                    {uploadResult.pauses.map((pause, index) => (
+                      <span className={pause.type} key={`${pause.type}-${index}`}>
+                        {pause.type === 'awkward_pause'
+                          ? 'Awkward pause'
+                          : 'Mild hesitation'}
+                        <small>
+                          {pause.duration_seconds.toFixed(2)}s after{' '}
+                          {pause.after_word}
+                        </small>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="accuracy-metrics" aria-label="Accuracy metrics">
                 <div>
                   <span>Matches</span>
@@ -478,6 +576,14 @@ function App() {
       </section>
     </main>
   )
+}
+
+function formatTimeRange(start: number | null, end: number | null) {
+  if (start === null || end === null) {
+    return '--'
+  }
+
+  return `${start.toFixed(2)}-${end.toFixed(2)}s`
 }
 
 export default App
