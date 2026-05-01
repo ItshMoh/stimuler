@@ -7,7 +7,12 @@ from urllib.parse import urlencode
 from fastapi import WebSocket
 
 from prompts import Prompt
-from scoring import score_accuracy, score_delivery, score_pronunciation
+from scoring import (
+    build_reliability_warnings,
+    score_accuracy,
+    score_delivery,
+    score_pronunciation,
+)
 
 
 def build_assessment_result(
@@ -44,6 +49,7 @@ def build_assessment_result(
         },
         "fillers": delivery_result["fillers"],
         "pauses": delivery_result["pauses"],
+        "reliability_warnings": build_reliability_warnings(confidence, words),
         "word_feedback": accuracy_result["word_feedback"],
         "explanation": accuracy_result["explanation"],
         "fluency_explanation": delivery_result["explanation"],

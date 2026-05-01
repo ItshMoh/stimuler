@@ -8,6 +8,7 @@ WordStatus = Literal["match", "substitution", "omission", "insertion"]
 FILLER_WORDS = {"um", "uh", "erm", "hmm", "like", "actually", "oh"}
 MILD_PAUSE_SECONDS = 0.7
 AWKWARD_PAUSE_SECONDS = 1.2
+LOW_CONFIDENCE_THRESHOLD = 0.78
 PHONETIC_REPLACEMENTS = (
     ("tion", "shun"),
     ("sion", "zhun"),
@@ -160,6 +161,30 @@ def score_pronunciation(
             confidence_score=confidence_score,
         ),
     }
+
+
+def build_reliability_warnings(
+    confidence: float | None,
+    words: list[dict[str, Any]],
+) -> list[str]:
+    warnings = []
+    average_word_confidence = calculate_confidence_score(words)
+
+    if confidence is not None and confidence < LOW_CONFIDENCE_THRESHOLD:
+        warnings.append(
+            "Deepgram transcript confidence was low, so this assessment may be less reliable."
+        )
+
+    if (
+        confidence is None
+        and average_word_confidence is not None
+        and average_word_confidence < round(LOW_CONFIDENCE_THRESHOLD * 100)
+    ):
+        warnings.append(
+            "Average word confidence was low, so this assessment may be less reliable."
+        )
+
+    return warnings
 
 
 def text_to_phonetic(text: str) -> str:

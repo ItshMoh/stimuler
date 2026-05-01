@@ -255,6 +255,47 @@
   font-size: 14px;
 }
 
+.noise-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.noise-panel.warning {
+  border-color: var(--warning);
+  background: #fff7ed;
+}
+
+.noise-panel div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.noise-panel span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.noise-panel strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.noise-panel meter {
+  width: 100%;
+}
+
+.noise-panel p {
+  color: var(--warning);
+  font-size: 13px;
+}
+
 .live-transcript {
   display: grid;
   gap: 8px;
@@ -304,6 +345,19 @@
 .upload-result p {
   color: var(--muted);
   font-size: 14px;
+}
+
+.warning-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  background: #fff7ed;
+}
+
+.warning-list p {
+  color: #92400e;
 }
 
 .score-panel {

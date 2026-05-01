@@ -1,6 +1,7 @@
 import unittest
 
 from scoring import (
+    build_reliability_warnings,
     detect_fillers,
     detect_pauses,
     levenshtein_distance,
@@ -134,6 +135,19 @@ class ScoringTest(unittest.TestCase):
         )
 
         self.assertLess(result["score"], 60)
+
+    def test_reliability_warning_uses_low_transcript_confidence(self):
+        warnings = build_reliability_warnings(0.7, [{"word": "hello", "confidence": 0.9}])
+
+        self.assertEqual(len(warnings), 1)
+
+    def test_reliability_warning_uses_word_confidence_when_transcript_missing(self):
+        warnings = build_reliability_warnings(
+            None,
+            [{"word": "hello", "confidence": 0.7}, {"word": "there", "confidence": 0.75}],
+        )
+
+        self.assertEqual(len(warnings), 1)
 
 
 if __name__ == "__main__":

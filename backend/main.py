@@ -6,7 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from deepgram_client import transcribe_audio
 from prompts import PROMPTS, get_prompt
-from scoring import score_accuracy, score_delivery, score_pronunciation
+from scoring import (
+    build_reliability_warnings,
+    score_accuracy,
+    score_delivery,
+    score_pronunciation,
+)
 from streaming import stream_transcription
 
 load_dotenv()
@@ -97,6 +102,10 @@ async def receive_audio(
         },
         "fillers": delivery_result["fillers"],
         "pauses": delivery_result["pauses"],
+        "reliability_warnings": build_reliability_warnings(
+            transcription["confidence"],
+            transcription["words"],
+        ),
         "word_feedback": accuracy_result["word_feedback"],
         "explanation": accuracy_result["explanation"],
         "fluency_explanation": delivery_result["explanation"],

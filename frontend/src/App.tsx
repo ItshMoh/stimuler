@@ -38,6 +38,7 @@ type UploadResult = {
   metrics: AssessmentMetrics
   fillers: FillerEvent[]
   pauses: PauseEvent[]
+  reliability_warnings: string[]
   word_feedback: WordFeedback[]
   explanation: string
   fluency_explanation: string
@@ -95,7 +96,9 @@ type PauseEvent = {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const ENVIRONMENT_NOISE_THRESHOLD = 0.045
 const categories: PromptCategory[] = ['All', 'IELTS', 'Professional']
+type AudioContextConstructor = typeof AudioContext
 
 function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
@@ -110,11 +113,15 @@ function App() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [liveTranscript, setLiveTranscript] = useState('')
+  const [environmentWarning, setEnvironmentWarning] = useState('')
+  const [noiseLevel, setNoiseLevel] = useState(0)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const websocketRef = useRef<WebSocket | null>(null)
   const timerRef = useRef<number | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserFrameRef = useRef<number | null>(null)
 
   useEffect(() => {
     const loadPrompts = async () => {
@@ -148,6 +155,7 @@ function App() {
   useEffect(() => {
     return () => {
       stopTimer()
+      stopNoiseMonitor()
       stopStream()
       websocketRef.current?.close()
     }
@@ -187,6 +195,58 @@ function App() {
     streamRef.current = null
   }
 
+  function startNoiseMonitor(stream: MediaStream) {
+    stopNoiseMonitor()
+
+    const AudioContextClass = getAudioContextClass()
+
+    if (!AudioContextClass) {
+      return
+    }
+
+    const audioContext = new AudioContextClass()
+    const analyser = audioContext.createAnalyser()
+    const source = audioContext.createMediaStreamSource(stream)
+    const samples = new Uint8Array(analyser.fftSize)
+
+    analyser.fftSize = 2048
+    source.connect(analyser)
+    audioContextRef.current = audioContext
+
+    const updateNoiseLevel = () => {
+      analyser.getByteTimeDomainData(samples)
+
+      let sum = 0
+
+      for (const sample of samples) {
+        const centered = (sample - 128) / 128
+        sum += centered * centered
+      }
+
+      const rms = Math.sqrt(sum / samples.length)
+      setNoiseLevel(rms)
+      setEnvironmentWarning(
+        rms > ENVIRONMENT_NOISE_THRESHOLD
+          ? 'Environment too noisy. Please move to a quieter place for an accurate score.'
+          : '',
+      )
+      analyserFrameRef.current = window.requestAnimationFrame(updateNoiseLevel)
+    }
+
+    updateNoiseLevel()
+  }
+
+  function stopNoiseMonitor() {
+    if (analyserFrameRef.current !== null) {
+      window.cancelAnimationFrame(analyserFrameRef.current)
+      analyserFrameRef.current = null
+    }
+
+    void audioContextRef.current?.close()
+    audioContextRef.current = null
+    setNoiseLevel(0)
+  }
+
   function getLiveTranscriptionUrl(promptId: string) {
     const url = new URL(API_BASE_URL)
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -215,8 +275,10 @@ function App() {
       setRecordingError('')
       setUploadResult(null)
       setLiveTranscript('')
+      setEnvironmentWarning('')
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      startNoiseMonitor(stream)
       const websocket = new WebSocket(getLiveTranscriptionUrl(selectedPrompt.id))
       websocket.binaryType = 'arraybuffer'
       websocketRef.current = websocket
@@ -287,6 +349,7 @@ function App() {
       setRecordingStatus('recording')
     } catch (error) {
       stopTimer()
+      stopNoiseMonitor()
       stopStream()
       websocketRef.current?.close()
       setRecordingStatus('error')
@@ -309,12 +372,11 @@ function App() {
   return (
     <main className="app-shell">
       <section className="intro-panel">
-        <div className="eyebrow">Phase 7</div>
+        <div className="eyebrow">Phase 8</div>
         <h1>Record your selected sentence</h1>
         <p>
           Choose a prompt, allow microphone access, and stream speech for live
-          transcription before strict accuracy, fluency, and pronunciation
-          scoring.
+          transcription with environment monitoring before final scoring.
         </p>
       </section>
 
@@ -420,6 +482,25 @@ function App() {
 
           {recordingError && <p className="error-message">{recordingError}</p>}
 
+          {(recordingStatus === 'recording' || environmentWarning) && (
+            <div
+              className={`noise-panel ${environmentWarning ? 'warning' : ''}`}
+              aria-live="polite"
+            >
+              <div>
+                <span>Environment</span>
+                <strong>{environmentWarning ? 'Too noisy' : 'Clear'}</strong>
+              </div>
+              <meter
+                aria-label="Ambient noise level"
+                max={0.12}
+                min={0}
+                value={Math.min(noiseLevel, 0.12)}
+              />
+              {environmentWarning && <p>{environmentWarning}</p>}
+            </div>
+          )}
+
           {(recordingStatus === 'recording' ||
             recordingStatus === 'uploading' ||
             liveTranscript) && (
@@ -433,6 +514,13 @@ function App() {
             <div className="upload-result">
               <h3>Strict accuracy</h3>
               <p>{uploadResult.message}</p>
+              {uploadResult.reliability_warnings.length > 0 && (
+                <div className="warning-list" aria-label="Reliability warnings">
+                  {uploadResult.reliability_warnings.map((warning) => (
+                    <p key={warning}>{warning}</p>
+                  ))}
+                </div>
+              )}
               <div className="score-panel">
                 <strong>{uploadResult.scores.accuracy}</strong>
                 <span>/100</span>
@@ -617,6 +705,14 @@ function formatTimeRange(start: number | null, end: number | null) {
   }
 
   return `${start.toFixed(2)}-${end.toFixed(2)}s`
+}
+
+function getAudioContextClass(): AudioContextConstructor | undefined {
+  return (
+    window.AudioContext ??
+    (window as Window & { webkitAudioContext?: AudioContextConstructor })
+      .webkitAudioContext
+  )
 }
 
 export default App
