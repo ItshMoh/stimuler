@@ -99,6 +99,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000
 const ENVIRONMENT_NOISE_THRESHOLD = 0.045
 const categories: PromptCategory[] = ['All', 'IELTS', 'Professional']
 type AudioContextConstructor = typeof AudioContext
+type ScoreTone = 'strong' | 'watch' | 'weak'
 
 function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
@@ -336,6 +337,7 @@ function App() {
 
       mediaRecorder.onstop = () => {
         stopTimer()
+        stopNoiseMonitor()
         stopStream()
 
         if (websocket.readyState === WebSocket.OPEN) {
@@ -372,11 +374,11 @@ function App() {
   return (
     <main className="app-shell">
       <section className="intro-panel">
-        <div className="eyebrow">Phase 8</div>
+        <div className="eyebrow">Phase 9</div>
         <h1>Record your selected sentence</h1>
         <p>
           Choose a prompt, allow microphone access, and stream speech for live
-          transcription with environment monitoring before final scoring.
+          transcription before complete feedback and word-level scoring.
         </p>
       </section>
 
@@ -482,6 +484,16 @@ function App() {
 
           {recordingError && <p className="error-message">{recordingError}</p>}
 
+          {recordingStatus === 'uploading' && (
+            <div className="loading-panel" aria-live="polite">
+              <span className="loading-spinner" aria-hidden="true" />
+              <div>
+                <strong>Finalizing feedback</strong>
+                <p>Scoring accuracy, pronunciation, fluency, pauses, and fillers.</p>
+              </div>
+            </div>
+          )}
+
           {(recordingStatus === 'recording' || environmentWarning) && (
             <div
               className={`noise-panel ${environmentWarning ? 'warning' : ''}`}
@@ -512,8 +524,17 @@ function App() {
 
           {uploadResult && (
             <div className="upload-result">
-              <h3>Strict accuracy</h3>
-              <p>{uploadResult.message}</p>
+              <div className="result-header">
+                <div>
+                  <h3>Assessment feedback</h3>
+                  <p>{uploadResult.message}</p>
+                </div>
+                <div className="overall-score">
+                  <span>Average</span>
+                  <strong>{calculateAverageScore(uploadResult.scores)}</strong>
+                </div>
+              </div>
+
               {uploadResult.reliability_warnings.length > 0 && (
                 <div className="warning-list" aria-label="Reliability warnings">
                   {uploadResult.reliability_warnings.map((warning) => (
@@ -521,11 +542,91 @@ function App() {
                   ))}
                 </div>
               )}
-              <div className="score-panel">
-                <strong>{uploadResult.scores.accuracy}</strong>
-                <span>/100</span>
+
+              <div className="score-card-grid" aria-label="Score breakdown">
+                {buildScoreCards(uploadResult).map((card) => (
+                  <div className={`score-card ${card.tone}`} key={card.label}>
+                    <span>{card.label}</span>
+                    <strong>{card.value}</strong>
+                    <p>{card.detail}</p>
+                  </div>
+                ))}
               </div>
-              <p>{uploadResult.explanation}</p>
+
+              <div className="transcript-compare" aria-label="Transcript comparison">
+                <div>
+                  <span>Target</span>
+                  <p>{uploadResult.target_text}</p>
+                </div>
+                <div>
+                  <span>Heard</span>
+                  <p>{uploadResult.transcript || 'No speech detected in this audio.'}</p>
+                </div>
+              </div>
+
+              <div className="feedback-section">
+                <div className="section-heading compact">
+                  <h3>Word-level heatmap</h3>
+                  <span>{uploadResult.explanation}</span>
+                </div>
+
+                <div className="word-feedback-list" aria-label="Word feedback">
+                  {uploadResult.word_feedback.map((item, index) => (
+                    <span className={item.status} key={`${item.status}-${index}`}>
+                      {item.target_word ?? `+ ${item.spoken_word}`}
+                      <small>{getWordFeedbackLabel(item)}</small>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="issue-grid">
+                <div className="feedback-section">
+                  <h3>Mismatch summary</h3>
+                  <div className="accuracy-metrics" aria-label="Accuracy metrics">
+                    <div>
+                      <span>Matches</span>
+                      <strong>{uploadResult.metrics.match_count}</strong>
+                    </div>
+                    <div>
+                      <span>Substitutions</span>
+                      <strong>{uploadResult.metrics.substitution_count}</strong>
+                    </div>
+                    <div>
+                      <span>Omissions</span>
+                      <strong>{uploadResult.metrics.omission_count}</strong>
+                    </div>
+                    <div>
+                      <span>Insertions</span>
+                      <strong>{uploadResult.metrics.insertion_count}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="feedback-section">
+                  <h3>Fillers and pauses</h3>
+                  <div className="accuracy-metrics" aria-label="Fluency metrics">
+                    <div>
+                      <span>Words / min</span>
+                      <strong>{uploadResult.metrics.words_per_minute ?? '--'}</strong>
+                    </div>
+                    <div>
+                      <span>Awkward pauses</span>
+                      <strong>{uploadResult.metrics.awkward_pause_count}</strong>
+                    </div>
+                    <div>
+                      <span>Fillers</span>
+                      <strong>{uploadResult.metrics.filler_count}</strong>
+                    </div>
+                    <div>
+                      <span>Duration</span>
+                      <strong>
+                        {uploadResult.metrics.speaking_duration_seconds ?? '--'}s
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               <div className="pronunciation-section">
                 <h3>Pronunciation approximation</h3>
@@ -623,36 +724,6 @@ function App() {
                 )}
               </div>
 
-              <div className="accuracy-metrics" aria-label="Accuracy metrics">
-                <div>
-                  <span>Matches</span>
-                  <strong>{uploadResult.metrics.match_count}</strong>
-                </div>
-                <div>
-                  <span>Substitutions</span>
-                  <strong>{uploadResult.metrics.substitution_count}</strong>
-                </div>
-                <div>
-                  <span>Omissions</span>
-                  <strong>{uploadResult.metrics.omission_count}</strong>
-                </div>
-                <div>
-                  <span>Insertions</span>
-                  <strong>{uploadResult.metrics.insertion_count}</strong>
-                </div>
-              </div>
-
-              <div className="word-feedback-list" aria-label="Word feedback">
-                {uploadResult.word_feedback.map((item, index) => (
-                  <span className={item.status} key={`${item.status}-${index}`}>
-                    {item.target_word ?? `+ ${item.spoken_word}`}
-                    {item.status === 'substitution' && (
-                      <small>{item.spoken_word}</small>
-                    )}
-                  </span>
-                ))}
-              </div>
-
               <h3>Deepgram transcript</h3>
               <blockquote>
                 {uploadResult.transcript || 'No speech detected in this audio.'}
@@ -705,6 +776,81 @@ function formatTimeRange(start: number | null, end: number | null) {
   }
 
   return `${start.toFixed(2)}-${end.toFixed(2)}s`
+}
+
+function buildScoreCards(result: UploadResult) {
+  return [
+    {
+      label: 'Accuracy',
+      value: result.scores.accuracy,
+      detail: result.explanation,
+      tone: getScoreTone(result.scores.accuracy),
+    },
+    {
+      label: 'Pronunciation',
+      value: result.scores.pronunciation,
+      detail: result.pronunciation_explanation,
+      tone: getScoreTone(result.scores.pronunciation),
+    },
+    {
+      label: 'Fluency',
+      value: result.scores.fluency,
+      detail: result.fluency_explanation,
+      tone: getScoreTone(result.scores.fluency),
+    },
+    {
+      label: 'Pauses',
+      value: result.scores.pause,
+      detail: `${result.metrics.awkward_pause_count} awkward pause(s) detected.`,
+      tone: getScoreTone(result.scores.pause),
+    },
+    {
+      label: 'Fillers',
+      value: result.scores.filler,
+      detail: `${result.metrics.filler_count} filler word(s) detected.`,
+      tone: getScoreTone(result.scores.filler),
+    },
+  ]
+}
+
+function calculateAverageScore(scores: UploadResult['scores']) {
+  const values = [
+    scores.accuracy,
+    scores.pronunciation,
+    scores.fluency,
+    scores.pause,
+    scores.filler,
+  ]
+
+  return Math.round(values.reduce((total, value) => total + value, 0) / values.length)
+}
+
+function getScoreTone(score: number): ScoreTone {
+  if (score >= 85) {
+    return 'strong'
+  }
+
+  if (score >= 65) {
+    return 'watch'
+  }
+
+  return 'weak'
+}
+
+function getWordFeedbackLabel(item: WordFeedback) {
+  if (item.status === 'match') {
+    return 'matched'
+  }
+
+  if (item.status === 'substitution') {
+    return `heard ${item.spoken_word}`
+  }
+
+  if (item.status === 'omission') {
+    return 'omitted'
+  }
+
+  return 'extra'
 }
 
 function getAudioContextClass(): AudioContextConstructor | undefined {
