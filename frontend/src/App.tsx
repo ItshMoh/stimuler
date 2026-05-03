@@ -391,7 +391,7 @@ function App() {
         </span>
       </section>
 
-      <section className="practice-layout">
+      <section className={`practice-layout ${uploadResult ? 'has-results' : ''}`}>
         <div className="prompt-browser">
           <div className="section-heading">
             <h2>Prompt list</h2>
@@ -628,140 +628,147 @@ function App() {
                 </div>
               </div>
 
-              <div className="pronunciation-section">
-                <h3>Pronunciation approximation</h3>
-                <p>{uploadResult.pronunciation_explanation}</p>
-                <div className="score-panel compact">
-                  <strong>{uploadResult.scores.pronunciation}</strong>
-                  <span>/100</span>
-                </div>
-                <div className="accuracy-metrics" aria-label="Pronunciation metrics">
-                  <div>
-                    <span>Phonetic match</span>
-                    <strong>{uploadResult.metrics.phonetic_similarity}</strong>
+              <div className="assessment-detail-grid">
+                <div className="pronunciation-section">
+                  <h3>Pronunciation approximation</h3>
+                  <p>{uploadResult.pronunciation_explanation}</p>
+                  <div className="score-panel compact">
+                    <strong>{uploadResult.scores.pronunciation}</strong>
+                    <span>/100</span>
                   </div>
-                  <div>
-                    <span>Word confidence</span>
-                    <strong>
-                      {uploadResult.metrics.average_word_confidence ?? '--'}
-                    </strong>
+                  <div className="accuracy-metrics" aria-label="Pronunciation metrics">
+                    <div>
+                      <span>Phonetic match</span>
+                      <strong>{uploadResult.metrics.phonetic_similarity}</strong>
+                    </div>
+                    <div>
+                      <span>Word confidence</span>
+                      <strong>
+                        {uploadResult.metrics.average_word_confidence ?? '--'}
+                      </strong>
+                    </div>
                   </div>
+                  <p className="limitation-note">
+                    MVP limitation: this is an approximation based on transcript
+                    phonetic distance and Deepgram confidence, not phoneme-level
+                    pronunciation assessment.
+                  </p>
                 </div>
-                <p className="limitation-note">
-                  MVP limitation: this is an approximation based on transcript
-                  phonetic distance and Deepgram confidence, not phoneme-level
-                  pronunciation assessment.
-                </p>
+
+                <div className="delivery-section">
+                  <h3>Fluency breakdown</h3>
+                  <p>{uploadResult.fluency_explanation}</p>
+
+                  <div className="score-grid" aria-label="Fluency scores">
+                    <div>
+                      <span>Fluency</span>
+                      <strong>{uploadResult.scores.fluency}</strong>
+                    </div>
+                    <div>
+                      <span>Pauses</span>
+                      <strong>{uploadResult.scores.pause}</strong>
+                    </div>
+                    <div>
+                      <span>Fillers</span>
+                      <strong>{uploadResult.scores.filler}</strong>
+                    </div>
+                  </div>
+
+                  <div className="accuracy-metrics" aria-label="Fluency metrics">
+                    <div>
+                      <span>Words / min</span>
+                      <strong>
+                        {uploadResult.metrics.words_per_minute ?? '--'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Duration</span>
+                      <strong>
+                        {uploadResult.metrics.speaking_duration_seconds ?? '--'}s
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Fillers</span>
+                      <strong>{uploadResult.metrics.filler_count}</strong>
+                    </div>
+                    <div>
+                      <span>Awkward pauses</span>
+                      <strong>{uploadResult.metrics.awkward_pause_count}</strong>
+                    </div>
+                  </div>
+
+                  {uploadResult.fillers.length > 0 && (
+                    <div className="event-list" aria-label="Detected fillers">
+                      {uploadResult.fillers.map((filler, index) => (
+                        <span key={`${filler.word}-${index}`}>
+                          {filler.word}
+                          <small>{formatTimeRange(filler.start, filler.end)}</small>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {uploadResult.pauses.length > 0 && (
+                    <div className="event-list" aria-label="Detected pauses">
+                      {uploadResult.pauses.map((pause, index) => (
+                        <span className={pause.type} key={`${pause.type}-${index}`}>
+                          {pause.type === 'awkward_pause'
+                            ? 'Awkward pause'
+                            : 'Mild hesitation'}
+                          <small>
+                            {pause.duration_seconds.toFixed(2)}s after{' '}
+                            {pause.after_word}
+                          </small>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="delivery-section">
-                <h3>Fluency breakdown</h3>
-                <p>{uploadResult.fluency_explanation}</p>
-
-                <div className="score-grid" aria-label="Fluency scores">
-                  <div>
-                    <span>Fluency</span>
-                    <strong>{uploadResult.scores.fluency}</strong>
-                  </div>
-                  <div>
-                    <span>Pauses</span>
-                    <strong>{uploadResult.scores.pause}</strong>
-                  </div>
-                  <div>
-                    <span>Fillers</span>
-                    <strong>{uploadResult.scores.filler}</strong>
-                  </div>
+              <div className="technical-panel">
+                <div className="section-heading compact">
+                  <h3>Deepgram transcript</h3>
+                  <span>Model, confidence, audio payload, and word timings</span>
                 </div>
+                <blockquote>
+                  {uploadResult.transcript || 'No speech detected in this audio.'}
+                </blockquote>
+                <dl>
+                  <div>
+                    <dt>Model</dt>
+                    <dd>{uploadResult.deepgram_model}</dd>
+                  </div>
+                  <div>
+                    <dt>Confidence</dt>
+                    <dd>
+                      {uploadResult.confidence === null
+                        ? 'Not available'
+                        : `${Math.round(uploadResult.confidence * 100)}%`}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Audio</dt>
+                    <dd>
+                      {uploadResult.content_type}, {uploadResult.size_bytes} bytes
+                    </dd>
+                  </div>
+                </dl>
 
-                <div className="accuracy-metrics" aria-label="Fluency metrics">
-                  <div>
-                    <span>Words / min</span>
-                    <strong>
-                      {uploadResult.metrics.words_per_minute ?? '--'}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Duration</span>
-                    <strong>
-                      {uploadResult.metrics.speaking_duration_seconds ?? '--'}s
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Fillers</span>
-                    <strong>{uploadResult.metrics.filler_count}</strong>
-                  </div>
-                  <div>
-                    <span>Awkward pauses</span>
-                    <strong>{uploadResult.metrics.awkward_pause_count}</strong>
-                  </div>
-                </div>
-
-                {uploadResult.fillers.length > 0 && (
-                  <div className="event-list" aria-label="Detected fillers">
-                    {uploadResult.fillers.map((filler, index) => (
-                      <span key={`${filler.word}-${index}`}>
-                        {filler.word}
-                        <small>{formatTimeRange(filler.start, filler.end)}</small>
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {uploadResult.pauses.length > 0 && (
-                  <div className="event-list" aria-label="Detected pauses">
-                    {uploadResult.pauses.map((pause, index) => (
-                      <span className={pause.type} key={`${pause.type}-${index}`}>
-                        {pause.type === 'awkward_pause'
-                          ? 'Awkward pause'
-                          : 'Mild hesitation'}
+                {uploadResult.words.length > 0 && (
+                  <div className="word-timing-list" aria-label="Word timings">
+                    {uploadResult.words.map((word, index) => (
+                      <span key={`${word.word}-${index}`}>
+                        {word.punctuated_word ?? word.word}
                         <small>
-                          {pause.duration_seconds.toFixed(2)}s after{' '}
-                          {pause.after_word}
+                          {word.start?.toFixed(2) ?? '--'}-
+                          {word.end?.toFixed(2) ?? '--'}s
                         </small>
                       </span>
                     ))}
                   </div>
                 )}
               </div>
-
-              <h3>Deepgram transcript</h3>
-              <blockquote>
-                {uploadResult.transcript || 'No speech detected in this audio.'}
-              </blockquote>
-              <dl>
-                <div>
-                  <dt>Model</dt>
-                  <dd>{uploadResult.deepgram_model}</dd>
-                </div>
-                <div>
-                  <dt>Confidence</dt>
-                  <dd>
-                    {uploadResult.confidence === null
-                      ? 'Not available'
-                      : `${Math.round(uploadResult.confidence * 100)}%`}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Audio</dt>
-                  <dd>
-                    {uploadResult.content_type}, {uploadResult.size_bytes} bytes
-                  </dd>
-                </div>
-              </dl>
-
-              {uploadResult.words.length > 0 && (
-                <div className="word-timing-list" aria-label="Word timings">
-                  {uploadResult.words.map((word, index) => (
-                    <span key={`${word.word}-${index}`}>
-                      {word.punctuated_word ?? word.word}
-                      <small>
-                        {word.start?.toFixed(2) ?? '--'}-
-                        {word.end?.toFixed(2) ?? '--'}s
-                      </small>
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </aside>
