@@ -1,0 +1,34 @@
+name: stimuler
+region: blr
+
+services:
+  - name: backend
+    environment_slug: python
+    github:
+      repo: ItshMoh/stimuler
+      branch: master
+      deploy_on_push: true
+    source_dir: backend
+    run_command: uvicorn main:app --host 0.0.0.0 --port 8080
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    health_check:
+      http_path: /api/health
+    envs:
+      - key: DEEPGRAM_API_KEY
+        value: replace-with-your-deepgram-key
+        type: secret
+        scope: RUN_TIME
+      - key: DEEPGRAM_MODEL
+        value: nova-3
+        type: general
+        scope: RUN_TIME
+      - key: FRONTEND_ORIGINS
+        value: https://replace-with-your-vercel-domain.vercel.app
+        type: general
+        scope: RUN_TIME
+      - key: STREAM_FINALIZE_WAIT_SECONDS
+        value: "1.2"
+        type: general
+        scope: RUN_TIME

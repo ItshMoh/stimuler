@@ -95,7 +95,9 @@ type PauseEvent = {
   end: number | null
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+).replace(/\/+$/, '')
 const ENVIRONMENT_NOISE_THRESHOLD = 0.045
 const categories: PromptCategory[] = ['All', 'IELTS', 'Professional']
 type AudioContextConstructor = typeof AudioContext
@@ -374,7 +376,7 @@ function App() {
   return (
     <main className="app-shell">
       <section className="intro-panel">
-        <div className="eyebrow">Phase 9</div>
+        <div className="eyebrow">Speech assessment</div>
         <h1>Record your selected sentence</h1>
         <p>
           Choose a prompt, allow microphone access, and stream speech for live
@@ -648,11 +650,6 @@ function App() {
                       </strong>
                     </div>
                   </div>
-                  <p className="limitation-note">
-                    MVP limitation: this is an approximation based on transcript
-                    phonetic distance and Deepgram confidence, not phoneme-level
-                    pronunciation assessment.
-                  </p>
                 </div>
 
                 <div className="delivery-section">

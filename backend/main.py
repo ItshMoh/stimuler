@@ -16,7 +16,18 @@ from streaming import stream_transcription
 
 load_dotenv()
 
-frontend_origin = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
+
+def get_frontend_origins() -> list[str]:
+    configured_origins = os.getenv(
+        "FRONTEND_ORIGINS",
+        os.getenv("FRONTEND_ORIGIN", "http://localhost:5173"),
+    )
+
+    return [
+        origin.strip()
+        for origin in configured_origins.split(",")
+        if origin.strip()
+    ]
 
 app = FastAPI(
     title="Stimuler Speech Assessment API",
@@ -25,7 +36,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_origin],
+    allow_origins=get_frontend_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
