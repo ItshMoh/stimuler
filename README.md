@@ -1,6 +1,6 @@
-# Stimuler Speech Assessment
+# Pitch Speech Assessment
 
-Stimuler is a speech assessment web app that checks whether a learner spoke the selected target sentence correctly. It combines live transcription, strict word-level matching, pronunciation approximation, fluency analysis, pause detection, filler detection, and ambient noise monitoring.
+Pitch is a speech assessment web app that checks whether a learner spoke the selected target sentence correctly. It combines live transcription, strict word-level matching, pronunciation approximation, fluency analysis, pause detection, filler detection, and ambient noise monitoring.
 
 The main goal is to avoid inflated scores when a user speaks confidently but says the wrong sentence. Accuracy is treated as a strict lexical comparison against the selected prompt, while delivery and pronunciation are scored separately.
 
